@@ -2,6 +2,9 @@ using UnityEngine;
 
 public class MovingSphere : MonoBehaviour
 {
+	//输入定义空间，指定输入的坐标对象。比如说以摄像机的坐标来判断前后左右
+	[SerializeField]
+	Transform playerInputSpace = default;
 
 	[SerializeField, Range(0f, 100f)]
 	float maxSpeed = 10f;
@@ -67,9 +70,25 @@ public class MovingSphere : MonoBehaviour
 		playerInput.x = Input.GetAxis("Horizontal");
 		playerInput.y = Input.GetAxis("Vertical");
 		playerInput = Vector2.ClampMagnitude(playerInput, 1f);
-
-		desiredVelocity =
-			new Vector3(playerInput.x, 0f, playerInput.y) * maxSpeed;
+		//存在指定输入空间，则从世界空间的方向转为输入空间的方向
+		if (playerInputSpace)
+		{
+			//垂直轨道，也就是观察的角度会影响速度。因为速度相对于输入空间，有一定的y值
+			//而移动是在xz空间中的，设置y为0，归一化向量，再缩放速度得出理论速度
+			Vector3 forward = playerInputSpace.forward;
+			forward.y = 0f;
+			forward.Normalize();
+			Vector3 right = playerInputSpace.right;
+			right.y = 0f;
+			right.Normalize();
+			desiredVelocity =
+				(forward * playerInput.y + right * playerInput.x) * maxSpeed;
+		}
+		else
+		{
+			desiredVelocity =
+				new Vector3(playerInput.x, 0f, playerInput.y) * maxSpeed;
+		}
 
 		desiredJump |= Input.GetButtonDown("Jump");
 
