@@ -36,8 +36,10 @@ public class OrbitCamera : MonoBehaviour
     Vector2 orbitAngles = new Vector2(45f, 0f);
     //记录最后操作时间
     float lastManualRotationTime;
-
-
+    //获取重力对齐四元数
+    Quaternion gravityAlignment = Quaternion.identity;
+    //跟踪轨道旋转
+    Quaternion orbitRotation;
 
     Camera regularCamera;
     //记录上一次的焦点，用于自动调整角度。使用两个焦点计算角色预期的前进方向
@@ -47,7 +49,7 @@ public class OrbitCamera : MonoBehaviour
         //获取摄像机BOX做盒投射
         regularCamera = GetComponent<Camera>();
         focusPoint = focus.position;
-        transform.localRotation = Quaternion.Euler(orbitAngles);
+        transform.localRotation = orbitRotation = Quaternion.Euler(orbitAngles);
     }
     void OnValidate()
     {
@@ -120,10 +122,12 @@ public class OrbitCamera : MonoBehaviour
             return false;
         }
         //使用当前焦点减去之前焦点获取前进方向向量
-        Vector2 movement = new Vector2(
-            focusPoint.x - previousFocusPoint.x,
-            focusPoint.z - previousFocusPoint.z
-        );
+        //因为初始以x轴和z轴作为比较对象，因此当重力方向变更，方法失效
+        //获取四元数的逆矩阵（？）,获取反重力对齐后的运动增量
+        Vector3 alignedDelta =
+                Quaternion.Inverse(gravityAlignment) *
+                (focusPoint - previousFocusPoint);
+        Vector2 movement = new Vector2(alignedDelta.x, alignedDelta.z);
         //如果前进的向量大小小于阈值，则不旋转
         float movementDeltaSqr = movement.sqrMagnitude;
         if (movementDeltaSqr < 0.0001f)
@@ -186,18 +190,22 @@ public class OrbitCamera : MonoBehaviour
     //放置任务重叠，一般物体在Update中更新，相机依赖于物体焦点位置，因此需要LateUpdate
     void LateUpdate()
     {
+        //获取当前重力的向上方向到新的重力的方向旋转，并乘以原四元数获取新的重力四元数
+        gravityAlignment =
+            Quaternion.FromToRotation(
+                gravityAlignment * Vector3.up,
+                CustomGravity.GetUpAxis(focusPoint)
+            ) * gravityAlignment;
         UpdateFocusPoint();
-        Quaternion lookRotation;
+        //Quaternion lookRotation;
         //定义一个相机的旋转，旋转时限制角度
         if (ManualRotation() || AutomaticRotation())
         {
             ConstrainAngles();
-            lookRotation = Quaternion.Euler(orbitAngles);
+            orbitRotation = Quaternion.Euler(orbitAngles);
         }
-        else
-        {
-            lookRotation = transform.localRotation;
-        }
+        Quaternion lookRotation = gravityAlignment * orbitRotation;
+        
         //转为一个Vector3
         Vector3 lookDirection = lookRotation * Vector3.forward;
         //焦点减去观察方向*距离获取观察相机位置，设置位置

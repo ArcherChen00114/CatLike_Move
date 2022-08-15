@@ -55,6 +55,7 @@
   <ItemGroup>
     <Compile Include="Assets\Scripts\MovingSphere.cs" />
     <Compile Include="Assets\Scripts\OrbitCamera.cs" />
+    <Compile Include="Assets\Scripts\CustomGravity.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="UnityEngine">

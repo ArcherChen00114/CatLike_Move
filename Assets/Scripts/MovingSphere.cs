@@ -43,7 +43,9 @@ public class MovingSphere : MonoBehaviour
 	int groundContactCount, steepContactCount;
 
 	bool OnGround => groundContactCount > 0;
-
+	//指定向上的轴，用于修改重力方向	
+	//指定三个轴，实现不同重力下的正常移动
+	Vector3 upAxis, rightAxis, forwardAxis;
 	bool OnSteep => steepContactCount > 0;
 
 	int jumpPhase;
@@ -61,6 +63,8 @@ public class MovingSphere : MonoBehaviour
 	void Awake()
 	{
 		body = GetComponent<Rigidbody>();
+		//应用自定义重力，关闭Unity默认重力
+		body.useGravity = false;
 		OnValidate();
 	}
 
@@ -75,20 +79,21 @@ public class MovingSphere : MonoBehaviour
 		{
 			//垂直轨道，也就是观察的角度会影响速度。因为速度相对于输入空间，有一定的y值
 			//而移动是在xz空间中的，设置y为0，归一化向量，再缩放速度得出理论速度
-			Vector3 forward = playerInputSpace.forward;
-			forward.y = 0f;
-			forward.Normalize();
-			Vector3 right = playerInputSpace.right;
-			right.y = 0f;
-			right.Normalize();
-			desiredVelocity =
-				(forward * playerInput.y + right * playerInput.x) * maxSpeed;
+			//修正之后 如果存在输入空间，则使用输入空间的前和右来设置除重力之外的轴
+
+			rightAxis = ProjectDirectionOnPlane(playerInputSpace.right, upAxis);
+			forwardAxis =
+				ProjectDirectionOnPlane(playerInputSpace.forward, upAxis);
 		}
 		else
 		{
-			desiredVelocity =
-				new Vector3(playerInput.x, 0f, playerInput.y) * maxSpeed;
+			//否则使用向量的正常方向来确定轴
+			rightAxis = ProjectDirectionOnPlane(Vector3.right, upAxis);
+			forwardAxis = ProjectDirectionOnPlane(Vector3.forward, upAxis);
+
 		}
+		desiredVelocity =
+			new Vector3(playerInput.x, 0f, playerInput.y) * maxSpeed;
 
 		desiredJump |= Input.GetButtonDown("Jump");
 
@@ -99,14 +104,19 @@ public class MovingSphere : MonoBehaviour
 
 	void FixedUpdate()
 	{
+		//持续更新重力对应的Up轴
+
+		Vector3 gravity = CustomGravity.GetGravity(body.position, out upAxis);
 		UpdateState();
 		AdjustVelocity();
 
 		if (desiredJump)
 		{
 			desiredJump = false;
-			Jump();
+			Jump(gravity);
 		}
+		//施加重力作为加速度
+		velocity += gravity * Time.deltaTime;
 
 		body.velocity = velocity;
 		ClearState();
@@ -135,7 +145,8 @@ public class MovingSphere : MonoBehaviour
 		}
 		else
 		{
-			contactNormal = Vector3.up;
+			//修改空中的向上方向为指定的轴
+			contactNormal = upAxis;
 		}
 	}
 	bool SnapToGround()
@@ -153,12 +164,14 @@ public class MovingSphere : MonoBehaviour
 			return false;
 		}
 		//射线检测下方是否为地面，检测法线是否算作地面，也就是是否超过设定的可移动地面最大角度
-		if (!Physics.Raycast(body.position, Vector3.down,
+		//修改重力之后，下方为指定的重力轴的反方向
+		if (!Physics.Raycast(body.position, -upAxis,
 			out RaycastHit hit, probeDistance, probeMask))
 		{
 			return false;
 		}
-		if (hit.normal.y < GetMinDot(hit.collider.gameObject.layer))
+		float upDot = Vector3.Dot(upAxis, steepNormal);
+		if (upDot < GetMinDot(hit.collider.gameObject.layer))
 		{
 			return false;
 		}
@@ -179,8 +192,8 @@ public class MovingSphere : MonoBehaviour
 	}
 	void AdjustVelocity()
 	{
-		Vector3 xAxis = ProjectOnContactPlane(Vector3.right).normalized;
-		Vector3 zAxis = ProjectOnContactPlane(Vector3.forward).normalized;
+		Vector3 xAxis = ProjectDirectionOnPlane(rightAxis, contactNormal);
+		Vector3 zAxis = ProjectDirectionOnPlane(forwardAxis, contactNormal);
 
 		float currentX = Vector3.Dot(velocity, xAxis);
 		float currentZ = Vector3.Dot(velocity, zAxis);
@@ -202,7 +215,7 @@ public class MovingSphere : MonoBehaviour
 		return (stairsMask & (1 << layer)) == 0 ?
 			minGroundDotProduct : minStairsDotProduct;
 	}
-	void Jump()
+	void Jump(Vector3 gravity)
 	{
 		Vector3 jumpDirection;
 		if (OnGround)
@@ -232,8 +245,10 @@ public class MovingSphere : MonoBehaviour
 			jumpPhase = 0;
 		}
 		jumpPhase += 1;
-			float jumpSpeed = Mathf.Sqrt(-2f * Physics.gravity.y * jumpHeight);
-			jumpDirection = (jumpDirection + Vector3.up).normalized;
+		//跳跃速度修改为重力的值而不是重力本身的y（也就是指定的轴）
+			float jumpSpeed = Mathf.Sqrt(2f * gravity.magnitude * jumpHeight);
+			//修改跳跃方向为重力方向上的向上
+			jumpDirection = (jumpDirection + upAxis).normalized;
 			float alignedSpeed = Vector3.Dot(velocity, jumpDirection);
 			if (alignedSpeed > 0f)
 			{
@@ -259,13 +274,14 @@ public class MovingSphere : MonoBehaviour
 		for (int i = 0; i < collision.contactCount; i++)
 		{
 			Vector3 normal = collision.GetContact(i).normal;
-			if (normal.y >= minDot)
+			float upDot = Vector3.Dot(upAxis, normal);
+			if (upDot >= minDot)
 			{
 				groundContactCount += 1;
 				contactNormal += normal;
 			}
 			//检查有无垂直的接触面，用于防止卡在某些裂缝中
-			else if (normal.y > -0.01f)
+			else if (upDot > -0.01f)
 			{
 				steepContactCount += 1;
 				steepNormal += normal;
@@ -278,7 +294,8 @@ public class MovingSphere : MonoBehaviour
 		if (steepContactCount > 1)
 		{
 			steepNormal.Normalize();
-			if (steepNormal.y >= minGroundDotProduct)
+			float upDot = Vector3.Dot(upAxis, steepNormal);
+			if (upDot >= minGroundDotProduct)
 			{
 				groundContactCount = 1;
 				contactNormal = steepNormal;
@@ -287,9 +304,13 @@ public class MovingSphere : MonoBehaviour
 		}
 		return false;
 	}
-
-	Vector3 ProjectOnContactPlane(Vector3 vector)
+	//在平面上投影方向
+	//Direction为方向，normal为地面法线
+	//指定方向减去法线*两者点乘（也就是方向投影到法线上的长度）
+	//减去之后就去除方向在法线上的位移，成为垂直于法线的运动轴
+	Vector3 ProjectDirectionOnPlane(Vector3 direction, Vector3 normal)
 	{
-		return vector - contactNormal * Vector3.Dot(vector, contactNormal);
+		//	return vector - contactNormal * Vector3.Dot(vector, contactNormal);
+		return (direction - normal * Vector3.Dot(direction, normal)).normalized;
 	}
 }
