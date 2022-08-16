@@ -10628,10 +10628,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f5d646b2d3af89b45acaa0235d5bc0df, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  innerDistance: 3
-  innerFalloffDistance: 6
   gravity: 9.81
   boundaryDistance: {x: 10, y: 10, z: 10}
+  outerDistance: 3
+  outerFalloffDistance: 6
+  innerDistance: 4
+  innerFalloffDistance: 6
 --- !u!4 &844824924
 Transform:
   m_ObjectHideFlags: 0
@@ -16512,7 +16514,7 @@ Mesh:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: pb_Mesh156714
+  m_Name: pb_Mesh17844
   serializedVersion: 10
   m_SubMeshes:
   - serializedVersion: 2
@@ -21665,11 +21667,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6315726874829106888, guid: 70e8f78853614ee42becaaa5e3c84988, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -4
+      value: -13.56
       objectReference: {fileID: 0}
     - target: {fileID: 6315726874829106888, guid: 70e8f78853614ee42becaaa5e3c84988, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.5
+      value: 4.25
       objectReference: {fileID: 0}
     - target: {fileID: 6315726874829106888, guid: 70e8f78853614ee42becaaa5e3c84988, type: 3}
       propertyPath: m_LocalPosition.z
