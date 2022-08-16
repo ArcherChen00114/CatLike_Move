@@ -32,6 +32,9 @@ public class OrbitCamera : MonoBehaviour
 
     [SerializeField]
     LayerMask obstructionMask = -1;
+    //限制上下翻转速度以适应瞬间的重力变化
+    [SerializeField, Min(0f)]
+    float upAlignmentSpeed = 360f;
     //指定摄像机角度，就如同手柄的左右摇杆，一个控制位置，另外一个控制摄像角度
     Vector2 orbitAngles = new Vector2(45f, 0f);
     //记录最后操作时间
@@ -182,6 +185,36 @@ public class OrbitCamera : MonoBehaviour
             focusPoint = targetPoint;
         }
     }
+    //适应重力变化的镜头翻转
+    void UpdateGravityAlignment()
+    {
+
+        //获取当前重力的向上方向到新的重力的方向旋转，并乘以原四元数获取新的重力四元数
+        //获取变换的方向向量
+        Vector3 fromUp = gravityAlignment * Vector3.up;
+        Vector3 toUp = CustomGravity.GetUpAxis(focusPoint);
+        //通过点乘获取变换的cos，顺便钳制值大小
+        float dot = Mathf.Clamp(Vector3.Dot(fromUp, toUp), -1f, 1f);
+        //将值变换为角度
+        float angle = Mathf.Acos(dot) * Mathf.Rad2Deg;
+        //限制最大角度为设置的最大速度*时间
+        float maxAngle = upAlignmentSpeed * Time.deltaTime;
+
+        Quaternion newAlignment =
+            Quaternion.FromToRotation(fromUp, toUp) * gravityAlignment;
+        if (angle <= maxAngle)//小于限定角度直接旋转
+        {
+            gravityAlignment = newAlignment;
+        }
+        else
+        {//大于限定角度，则进行角度插值
+            gravityAlignment = Quaternion.SlerpUnclamped(
+                gravityAlignment, newAlignment, maxAngle / angle
+            );
+        }
+
+    }
+
     // Update is called once per frame
     void Update()
     {
@@ -190,12 +223,7 @@ public class OrbitCamera : MonoBehaviour
     //放置任务重叠，一般物体在Update中更新，相机依赖于物体焦点位置，因此需要LateUpdate
     void LateUpdate()
     {
-        //获取当前重力的向上方向到新的重力的方向旋转，并乘以原四元数获取新的重力四元数
-        gravityAlignment =
-            Quaternion.FromToRotation(
-                gravityAlignment * Vector3.up,
-                CustomGravity.GetUpAxis(focusPoint)
-            ) * gravityAlignment;
+        UpdateGravityAlignment();
         UpdateFocusPoint();
         //Quaternion lookRotation;
         //定义一个相机的旋转，旋转时限制角度
