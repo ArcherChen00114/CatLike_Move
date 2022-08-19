@@ -30,13 +30,15 @@ public class MovingSphere : MonoBehaviour
 
 	[SerializeField]
 	LayerMask probeMask = -1, stairsMask = -1;
-
-	Rigidbody body;
-
-	Vector3 velocity, desiredVelocity;
+	//保存当前物体刚体，接触物体刚体，上一步接触物体刚体
+	Rigidbody body, connectedBody, previousConnectedBody;
+	//速度，预期速度，接触速度
+	Vector3 velocity, desiredVelocity, connectionVelocity;
 
 	//SteepNormal用于计算垂直平面
 	Vector3 contactNormal, steepNormal;
+	//接触刚体世界位置
+	Vector3 connectionWorldPosition, connectionLocalPosition;
 
 	bool desiredJump;
 
@@ -121,11 +123,15 @@ public class MovingSphere : MonoBehaviour
 		body.velocity = velocity;
 		ClearState();
 	}
-
+	//清空数据
 	void ClearState()
 	{
 		groundContactCount = steepContactCount = 0;
-		contactNormal = steepNormal = Vector3.zero;
+
+		contactNormal = steepNormal = connectionVelocity = Vector3.zero;
+		//下一步长时，当前接触刚体变为上一接触刚体，当前接触刚体清空
+		previousConnectedBody = connectedBody;
+		connectedBody = null;
 	}
 
 	void UpdateState()
@@ -148,6 +154,36 @@ public class MovingSphere : MonoBehaviour
 			//修改空中的向上方向为指定的轴
 			contactNormal = upAxis;
 		}
+		//如果有接触刚体设置连结位置为该刚体位置
+		if (connectedBody)
+		{
+			//检测接触刚体质量，以及是否受物理影响。避免被较轻的物体的所受重力带跑
+			if (connectedBody.isKinematic || connectedBody.mass >= body.mass)
+			{
+				UpdateConnectionState();
+			}
+		}
+	}
+	void UpdateConnectionState()
+	{
+		//下面的计算仅在同一链接物体时才有效
+		if (connectedBody == previousConnectedBody)
+		{
+			//当前链接位置减去保存的世界链接位置，除以时间获取速度
+			//将本地坐标转回世界坐标再做计算
+			Vector3 connectionMovement =
+				connectedBody.transform.TransformPoint(connectionLocalPosition) -
+				connectionWorldPosition;
+			connectionVelocity = connectionMovement / Time.deltaTime;
+		}
+		//使用球体位置作为世界链接位置，而不是接触的位置
+		//将世界坐标系转为球体的本地坐标系
+		
+		connectionWorldPosition = body.position;
+		connectionLocalPosition = connectedBody.transform.InverseTransformPoint(
+			connectionWorldPosition
+		);
+
 	}
 	bool SnapToGround()
 	{
@@ -188,15 +224,19 @@ public class MovingSphere : MonoBehaviour
 		{
 			velocity = (velocity - hit.normal * dot).normalized * speed;
 		}
+		//跟踪连结物体
+		connectedBody = hit.rigidbody;
 		return true;
 	}
 	void AdjustVelocity()
 	{
 		Vector3 xAxis = ProjectDirectionOnPlane(rightAxis, contactNormal);
 		Vector3 zAxis = ProjectDirectionOnPlane(forwardAxis, contactNormal);
-
-		float currentX = Vector3.Dot(velocity, xAxis);
-		float currentZ = Vector3.Dot(velocity, zAxis);
+		//将链接地面的速度添加到物体中，是球体适应移动面的运动
+		//球体速度减去链接速度，使用相对速度来获取x和z速度，将原有的绝对速度转为当前连接面的相对速度
+		Vector3 relativeVelocity = velocity - connectionVelocity;
+		float currentX = Vector3.Dot(relativeVelocity, xAxis);
+		float currentZ = Vector3.Dot(relativeVelocity, zAxis);
 
 		float acceleration = OnGround ? maxAcceleration : maxAirAcceleration;
 		float maxSpeedChange = acceleration * Time.deltaTime;
@@ -279,12 +319,20 @@ public class MovingSphere : MonoBehaviour
 			{
 				groundContactCount += 1;
 				contactNormal += normal;
+				//检测到地面接触，将碰撞的刚体属性分配
+				connectedBody = collision.rigidbody;
 			}
 			//检查有无垂直的接触面，用于防止卡在某些裂缝中
 			else if (upDot > -0.01f)
 			{
 				steepContactCount += 1;
 				steepNormal += normal;
+				//groundContactCount==0，也就是检测地面法线都没通过，即处于斜坡上。
+				//此时优先选择地面，仅在没有地面时才接触斜坡
+				if (groundContactCount == 0)
+				{
+					connectedBody = collision.rigidbody;
+				}
 			}
 		}
 	}
