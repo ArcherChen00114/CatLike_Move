@@ -853,6 +853,7 @@ GameObject:
   - component: {fileID: 68901709}
   - component: {fileID: 68901708}
   - component: {fileID: 68901707}
+  - component: {fileID: 68901712}
   m_Layer: 0
   m_Name: Plane
   m_TagString: Untagged
@@ -5108,6 +5109,20 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 3
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &68901712
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 68901706}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 224c4a6ffa7bb7d4d98c46c3c7f8de14, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  gravity: 9.81
+  range: 100
 --- !u!1 &334410338
 GameObject:
   m_ObjectHideFlags: 0
@@ -8436,6 +8451,14 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 6315726874829106890, guid: 70e8f78853614ee42becaaa5e3c84988, type: 3}
+      propertyPath: normalMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: 8d195c25696962b47a57f20c80780593, type: 2}
+    - target: {fileID: 6315726874829106890, guid: 70e8f78853614ee42becaaa5e3c84988, type: 3}
+      propertyPath: climbingMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: 66e37e6d3189452429e1f96df331f59f, type: 2}
+    - target: {fileID: 6315726874829106890, guid: 70e8f78853614ee42becaaa5e3c84988, type: 3}
       propertyPath: playerInputSpace
       value: 
       objectReference: {fileID: 963194228}
@@ -8555,13 +8578,17 @@ MonoBehaviour:
   maxVerticalAngle: 60
   alignDelay: 1
   alignSmoothRange: 45
+  obstructionMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  upAlignmentSpeed: 360
 --- !u!43 &994149110
 Mesh:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: pb_Mesh26982
+  m_Name: pb_Mesh17936
   serializedVersion: 10
   m_SubMeshes:
   - serializedVersion: 2

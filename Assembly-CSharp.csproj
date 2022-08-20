@@ -53,14 +53,15 @@
     <UnityVersion>2020.3.23f1</UnityVersion>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Assets\Scripts\GravityBox.cs" />
     <Compile Include="Assets\Scripts\MovingSphere.cs" />
     <Compile Include="Assets\Scripts\CustomGravityRigidbody.cs" />
     <Compile Include="Assets\Scripts\CustomGravity.cs" />
     <Compile Include="Assets\Scripts\OrbitCamera.cs" />
+    <Compile Include="Assets\Scripts\GravitySphere.cs" />
     <Compile Include="Assets\Scripts\GravitySource.cs" />
     <Compile Include="Assets\Scripts\GravityPlane.cs" />
-    <Compile Include="Assets\Scripts\GravitySphere.cs" />
-    <Compile Include="Assets\Scripts\GravityBox.cs" />
+    <Compile Include="Assets\Scripts\StableFloatingRigidbody.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="UnityEngine">

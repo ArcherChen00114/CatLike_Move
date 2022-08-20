@@ -820,6 +820,18 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 6315726874829106890, guid: 70e8f78853614ee42becaaa5e3c84988, type: 3}
+      propertyPath: normalMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: 8d195c25696962b47a57f20c80780593, type: 2}
+    - target: {fileID: 6315726874829106890, guid: 70e8f78853614ee42becaaa5e3c84988, type: 3}
+      propertyPath: clibmMask.m_Bits
+      value: 359
+      objectReference: {fileID: 0}
+    - target: {fileID: 6315726874829106890, guid: 70e8f78853614ee42becaaa5e3c84988, type: 3}
+      propertyPath: climbingMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: 66e37e6d3189452429e1f96df331f59f, type: 2}
+    - target: {fileID: 6315726874829106890, guid: 70e8f78853614ee42becaaa5e3c84988, type: 3}
       propertyPath: playerInputSpace
       value: 
       objectReference: {fileID: 963194228}
