@@ -6,12 +6,27 @@ public class MovingSphere : MonoBehaviour
 	Vector3 playerInput;
 	//输入定义空间，指定输入的坐标对象。比如说以摄像机的坐标来判断前后左右
 	[SerializeField]
-	Transform playerInputSpace = default;
+	Transform playerInputSpace = default, ball =default;
 	//正常情况应当绑定不同的动作，这里是球形，暂时先使用两种不同的材质表示攀爬状态和普通状态
 	[SerializeField]
 	Material normalMaterial = default,
 		climbingMaterial = default,
 		swimmingMaterial = default;
+	//记录移动方向用以操控物体旋转
+	//记录爬坡法线用于计算显示旋转
+	//记录链接速度用于相减后让物体不会因为随着移动平台产生移动动画
+	Vector3 lastContactNormal, lastSteepNormal, lastConnectionVelocity;
+	//球体在空中和水中的旋转速度
+	[SerializeField, Min(0f)]
+	float
+	ballAirRotation = 0.5f,
+	ballSwimRotation = 2f;
+
+	[SerializeField, Min(0.1f)]
+	float ballRadius = 0.5f;
+	//控制球体回正的速度
+	[SerializeField, Min(0f)]
+	float ballAlignSpeed = 180f;
 
 	[SerializeField, Range(0f, 100f)]
 	float maxSpeed = 10f, maxClimbSpeed = 2f, maxSwimSpeed=5f;
@@ -104,16 +119,16 @@ public class MovingSphere : MonoBehaviour
 		body = GetComponent<Rigidbody>();
 		//应用自定义重力，关闭Unity默认重力
 		body.useGravity = false;
-		meshRenderer = GetComponent<MeshRenderer>();
+		meshRenderer = ball.GetComponent<MeshRenderer>();
 		OnValidate();
 	}
 
 	void Update()
 	{
 		playerInput.x = Input.GetAxis("Horizontal");
-		playerInput.y = Input.GetAxis("Vertical");
+		playerInput.z = Input.GetAxis("Vertical");
 		//添加一个输入来潜水/上浮
-		playerInput.z = Swimming ? Input.GetAxis("UpDown") : 0f;
+		playerInput.y = Swimming ? Input.GetAxis("UpDown") : 0f;
 		playerInput = Vector3.ClampMagnitude(playerInput, 1f);
 		//存在指定输入空间，则从世界空间的方向转为输入空间的方向
 		if (playerInputSpace)
@@ -145,13 +160,110 @@ public class MovingSphere : MonoBehaviour
 
 		}
 
-		GetComponent<Renderer>().material.SetColor(
-			"_Color", OnGround ? Color.black : Color.white
-		);
 		//可以攀爬则使用攀爬材质
 		//不为攀爬状态则判断是否游泳材质=》游泳状态才更改材质，主要是对应正常的状态改变
-		meshRenderer.material = Climbing ? climbingMaterial :
-			Swimming ? swimmingMaterial : normalMaterial;
+		UpdateBall();
+
+	}
+
+	void UpdateBall()
+	{
+		//获取作为接触平面的法线
+		Vector3 rotationPlaneNormal = lastContactNormal;
+		Material ballMaterial = normalMaterial;
+		float rotationFactor = 1f;
+		if (Climbing)
+		{
+			ballMaterial = climbingMaterial;
+		}
+		else if (Swimming)
+		{
+			ballMaterial = swimmingMaterial;
+			rotationFactor = ballSwimRotation;
+		}
+		//不处于地面上则使用斜坡法线而非地面法线
+		else if (!OnGround)
+		{
+			if (OnSteep)
+			{
+				lastContactNormal = lastSteepNormal;
+			}
+			else {
+				rotationFactor = ballAirRotation;
+			}
+		}
+		meshRenderer.material = ballMaterial;
+		//速度*时间获取运动的矢量来计算滚动的角度。
+		//减去连接速度来计算滚动
+		Vector3 movement = (body.velocity - lastConnectionVelocity) * Time.deltaTime;
+		//法线减去移动在法线上，也就是使运动稳定在法线上
+		movement -= rotationPlaneNormal * Vector3.Dot(movement, rotationPlaneNormal);
+
+		float distance = movement.magnitude;
+		Quaternion rotation = ball.localRotation;
+		//有持续的链接平面
+		if (connectedBody && connectedBody == previousConnectedBody)
+		{
+			//计算链接平面的角速度，并按速度得出旋转
+			rotation = Quaternion.Euler(
+				connectedBody.angularVelocity * (Mathf.Rad2Deg * Time.deltaTime)
+			) * rotation;
+			if (distance < 0.001f)
+			{
+				ball.localRotation = rotation;
+				return;
+			}
+		}
+		//无视极小的速度
+		else if(distance < 0.001f)
+		{
+			return;
+		}
+		//将距离转换为角度，一个圆周的长度2ΠR，距离除以ΠR就是表示长度旋转多少个180度*180则就是角度
+
+		float angle = distance * rotationFactor * (180f / Mathf.PI) / ballRadius;
+		//移动方向与之前的接触法线叉乘获取旋转轴
+		//法线和前进方向的叉乘的结果也就是前进方向的本地空间的右向量或是左向量
+		Vector3 rotationAxis =
+			Vector3.Cross(rotationPlaneNormal, movement).normalized;
+		//将平面的旋转纳入计算
+		rotation = Quaternion.Euler(rotationAxis * angle) * rotation;
+		//如果允许自动回正，计算回正后的旋转四元数
+		if(ballAlignSpeed > 0f)
+        {
+			rotation = AlignBallRotation(rotationAxis, rotation, distance);
+		}
+		//应用旋转
+		ball.localRotation = rotation;
+		
+
+	}
+	//将球体旋转回正，基础逻辑和摄像机的旋转差不多，只需要替换轴的对象,返回旋转的四元数
+	//传入距离参数，实际上球体的移动动画应当和他的速度匹配
+	Quaternion AlignBallRotation(Vector3 rotationAxis, Quaternion rotation, float traveledDistance)
+	{
+
+		//获取球体的向上向量
+		Vector3 ballAxis = ball.up;
+		//通过点乘获取旋转角度回正所需变换的cos，顺便钳制值大小
+		float dot = Mathf.Clamp(Vector3.Dot(ballAxis, rotationAxis), -1f, 1f);
+		//将值变换为角度
+		float angle = Mathf.Acos(dot) * Mathf.Rad2Deg;
+		//限制最大角度为设置的最大速度*时间
+		float maxAngle = ballAlignSpeed * traveledDistance;
+
+		Quaternion newAlignment =
+			Quaternion.FromToRotation(rotationAxis, ballAxis) * rotation;
+		if (angle <= maxAngle)//小于限定角度直接旋转
+		{
+			return newAlignment;
+		}
+		else
+		{//大于限定角度，则进行角度插值
+			return Quaternion.SlerpUnclamped(
+				rotation, newAlignment, maxAngle / angle
+			);
+		}
 
 	}
 
@@ -186,6 +298,8 @@ public class MovingSphere : MonoBehaviour
 			velocity +=
 				gravity * ((1f - buoyancy * submergence) * Time.deltaTime);
 		}
+		
+
 		//当球体处于地面，且速度很低
 		else if (OnGround && velocity.sqrMagnitude < 0.01f)
 		{
@@ -214,6 +328,10 @@ public class MovingSphere : MonoBehaviour
 	//清空数据
 	void ClearState()
 	{
+		//保存上一步长结束时的移动方向和法线
+		lastSteepNormal = steepNormal;
+		lastContactNormal = contactNormal;
+		lastConnectionVelocity = connectionVelocity;
 		groundContactCount = steepContactCount = climbContactCount = 0;
 
 		contactNormal = steepNormal = connectionVelocity = climbNormal = Vector3.zero;
@@ -364,25 +482,32 @@ public class MovingSphere : MonoBehaviour
 		//将链接地面的速度添加到物体中，是球体适应移动面的运动
 		//球体速度减去链接速度，使用相对速度来获取x和z速度，将原有的绝对速度转为当前连接面的相对速度
 		Vector3 relativeVelocity = velocity - connectionVelocity;
-		float currentX = Vector3.Dot(relativeVelocity, xAxis);
-		float currentZ = Vector3.Dot(relativeVelocity, zAxis);
 
-		float maxSpeedChange = acceleration * Time.deltaTime;
+		//float currentX = Vector3.Dot(relativeVelocity, xAxis);
+		//float currentZ = Vector3.Dot(relativeVelocity, zAxis);
 
-		float newX =
-			Mathf.MoveTowards(currentX, playerInput.x * speed, maxSpeedChange);
-		float newZ =
-			Mathf.MoveTowards(currentZ, playerInput.y * speed, maxSpeedChange);
+		//从只计算当前XZ，更改为将当前速度纳入计算，这样有速度的情况下移动不会生硬
+		Vector3 adjustment;
+		adjustment.x =
+			playerInput.x * speed - Vector3.Dot(relativeVelocity, xAxis);
+		adjustment.z =
+			playerInput.z * speed - Vector3.Dot(relativeVelocity, zAxis);
+		//游泳同理，不过如果不处于游泳状态则为0
+		adjustment.y = Swimming ?
+			playerInput.y * speed - Vector3.Dot(relativeVelocity, upAxis) : 0f;
 
-		velocity += xAxis * (newX - currentX) + zAxis * (newZ - currentZ);
+		//float maxSpeedChange = acceleration * Time.deltaTime;
+		//float newX =Mathf.MoveTowards(currentX, playerInput.x * speed, maxSpeedChange);
+		//float newZ =Mathf.MoveTowards(currentZ, playerInput.y * speed, maxSpeedChange);
+
+		adjustment =
+			Vector3.ClampMagnitude(adjustment, acceleration * Time.deltaTime);
+
+		velocity += xAxis * adjustment.x + zAxis * adjustment.z;
 		//同上面一样，添加一个预期移动位置，再应用到速度上
 		if (Swimming)
 		{
-			float currentY = Vector3.Dot(relativeVelocity, upAxis);
-			float newY = Mathf.MoveTowards(
-				currentY, playerInput.z * speed, maxSpeedChange
-			);
-			velocity += upAxis * (newY - currentY);
+			velocity += upAxis * adjustment.y;
 		}
 
 	}
@@ -593,5 +718,10 @@ public class MovingSphere : MonoBehaviour
 	{
 		//	return vector - contactNormal * Vector3.Dot(vector, contactNormal);
 		return (direction - normal * Vector3.Dot(direction, normal)).normalized;
+	}
+
+	public void PreventSnapToGround()
+	{
+		stepsSinceLastJump = -1;
 	}
 }

@@ -27,10 +27,14 @@ public class StableFloatingRigidbody : MonoBehaviour
 	[SerializeField]
 	LayerMask waterMask = 0;
 	//设置一个浮力起始偏移，以使物体轻重分布
+	//修改单个向量为向量组，多点受力扩展浮力效应
 	[SerializeField]
 	Vector3[] buoyancyOffsets = default;
 	//大的平面，需要多个浮力点
 	float[] submergence;
+	//操控安全浮动，检测单个观测点，而非物体是否处于水中
+	[SerializeField]
+	bool safeFloating = false;
 
 	Vector3 gravity;
 
@@ -71,6 +75,8 @@ public class StableFloatingRigidbody : MonoBehaviour
 			}
 		}
 		gravity = CustomGravity.GetGravity(body.position);
+		//每个偏移量应用阻力和浮力
+		//原来的阻力和浮力分成等分的几份
 		float dragFactor = waterDrag * Time.deltaTime / buoyancyOffsets.Length;
 		float buoyancyFactor = -buoyancy / buoyancyOffsets.Length;
 		for (int i = 0; i < buoyancyOffsets.Length; i++)
@@ -79,12 +85,12 @@ public class StableFloatingRigidbody : MonoBehaviour
 			{
 				//阻力
 				float drag =
-					Mathf.Max(0f, 1f - dragFactor * submergence[i] * Time.deltaTime);
+					Mathf.Max(0f, 1f - dragFactor * submergence[i]);
 				body.velocity *= drag;
 				body.angularVelocity *= drag;
 				//添加浮力，现在将浮力添加到一个点上，使一个面总是在浮力影响下朝上
 				body.AddForceAtPosition(
-					gravity * -(buoyancyFactor * submergence[i]),
+					gravity * (buoyancyFactor * submergence[i]),
 					transform.TransformPoint(buoyancyOffsets[i]),
 					ForceMode.Acceleration
 				);
@@ -115,8 +121,6 @@ public class StableFloatingRigidbody : MonoBehaviour
 
 	void EvaluateSubmergence()
 	{
-		Vector3 upAxis = -gravity.normalized;
-
 		Vector3 down = gravity.normalized;
 		Vector3 offset = down * -submergenceOffset;
 		for (int i = 0; i < buoyancyOffsets.Length; i++)
@@ -127,10 +131,14 @@ public class StableFloatingRigidbody : MonoBehaviour
 			waterMask, QueryTriggerInteraction.Collide
 		))
 			{
+				//评估所有浮力偏移的浸入度
 				submergence[i] = 1f - hit.distance / submergenceRange;
-			}
-			else
-			{
+			}//如果SafeFloating开启，则判断点范围是否接触水面
+			else if (
+				!safeFloating || Physics.CheckSphere(
+					p, 0.01f, waterMask, QueryTriggerInteraction.Collide
+				)
+			){
 				submergence[i] = 1f;
 			}
 		}

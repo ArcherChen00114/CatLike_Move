@@ -775,6 +775,22 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1889356104192414056, guid: 70e8f78853614ee42becaaa5e3c84988, type: 3}
+      propertyPath: normalMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: 1484b6c631bbf1645bd370638b89484d, type: 2}
+    - target: {fileID: 1889356104192414056, guid: 70e8f78853614ee42becaaa5e3c84988, type: 3}
+      propertyPath: climbingMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: dc6e2624863878544a91ccc43c7fca06, type: 2}
+    - target: {fileID: 1889356104192414056, guid: 70e8f78853614ee42becaaa5e3c84988, type: 3}
+      propertyPath: playerInputSpace
+      value: 
+      objectReference: {fileID: 963194228}
+    - target: {fileID: 1889356104192414056, guid: 70e8f78853614ee42becaaa5e3c84988, type: 3}
+      propertyPath: swimmingMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: 569d98ed891864246a003125bef414d4, type: 2}
     - target: {fileID: 6315726874829106888, guid: 70e8f78853614ee42becaaa5e3c84988, type: 3}
       propertyPath: m_RootOrder
       value: 5
